@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="UtilityOMS.API/UtilityOMS.API.csproj" />
+  <Project Path="UtilityOMS.Web/UtilityOMS.Web.csproj" />
+</Solution>
