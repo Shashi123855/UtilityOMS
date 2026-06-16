@@ -1,0 +1,405 @@
+﻿@page "/outages"
+@rendermode InteractiveServer
+@using UtilityOMS.Web.Services
+@inject OutageClientService OutageService
+@inject CrewClientService CrewService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 style="font-weight:700; color:#1a1f3c; margin:0;">Outage Management</h4>
+        <p style="color:#888; font-size:0.875rem; margin:0;">
+            Track and manage all reported outages
+        </p>
+    </div>
+    <button class="btn-primary-custom" @onclick="() => _showCreateModal = true">
+        <i class="bi bi-plus-lg"></i> Report Outage
+    </button>
+</div>
+
+<!-- Filter Bar -->
+<div class="panel mb-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+        <div class="search-bar">
+            <i class="bi bi-search"></i>
+            <input placeholder="Search outages..." @bind="_searchTerm"
+                   @bind:event="oninput" />
+        </div>
+        <select class="form-control-custom" style="width:180px;"
+                @bind="_statusFilter">
+            <option value="">All Statuses</option>
+            <option value="Reported">Reported</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+        </select>
+        <select class="form-control-custom" style="width:180px;"
+                @bind="_causeFilter">
+            <option value="">All Causes</option>
+            <option value="Storm">Storm</option>
+            <option value="Equipment">Equipment</option>
+            <option value="Accident">Accident</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Unknown">Unknown</option>
+        </select>
+        <span style="color:#888; font-size:0.82rem; margin-left:auto;">
+            Showing @FilteredOutages.Count() of @_outages.Count outages
+        </span>
+    </div>
+</div>
+
+<!-- Outages Table -->
+<div class="panel">
+    @if (_loading)
+    {
+        <div class="loading-container">
+            <div class="spinner-custom"></div>
+            <span>Loading outages...</span>
+        </div>
+    }
+    else if (!FilteredOutages.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-exclamation-triangle"></i>
+            <p>No outages found.<br />Try adjusting your filters.</p>
+        </div>
+    }
+    else
+    {
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Area</th>
+                    <th>Cause</th>
+                    <th>Customers</th>
+                    <th>Status</th>
+                    <th>Crew</th>
+                    <th>Reported</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var o in FilteredOutages)
+                {
+                    <tr>
+                        <td style="color:#aaa; font-size:0.8rem;">#@o.Id</td>
+                        <td>
+                            <strong style="color:#1a1f3c;">@o.Title</strong>
+                            <div style="font-size:0.75rem; color:#aaa;
+                                max-width:200px; overflow:hidden;
+                                text-overflow:ellipsis; white-space:nowrap;">
+                                @o.Description
+                            </div>
+                        </td>
+                        <td style="color:#666;">@o.AffectedArea</td>
+                        <td style="color:#666;">@o.Cause</td>
+                        <td>
+                            <span style="font-weight:600; color:#e74c3c;">
+                                @o.AffectedCustomers
+                            </span>
+                        </td>
+                        <td>
+                            <span class="@GetStatusBadge(o.Status)">@o.Status</span>
+                        </td>
+                        <td style="font-size:0.82rem; color:#666;">
+                            @(o.AssignedCrewName ?? "— Unassigned")
+                        </td>
+                        <td style="color:#888; font-size:0.8rem;">
+                            @o.ReportedAt.ToString("MMM dd, hh:mm tt")
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button class="btn-edit-custom" @onclick="() => OpenEdit(o)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn-danger-custom" @onclick="() => DeleteOutage(o.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<!-- SUCCESS / ERROR -->
+@if (_successMsg != null)
+{
+    <div class="alert-custom-success mt-3">
+        <i class="bi bi-check-circle-fill"></i> @_successMsg
+    </div>
+}
+@if (_errorMsg != null)
+{
+    <div class="alert-custom-error mt-3">
+        <i class="bi bi-x-circle-fill"></i> @_errorMsg
+    </div>
+}
+
+<!-- CREATE MODAL -->
+@if (_showCreateModal)
+{
+    <div class="modal-overlay" @onclick="() => _showCreateModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5><i class="bi bi-plus-circle me-2" style="color:#4e9af1;"></i>Report New Outage</h5>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Title *</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. North Side Power Failure"
+                       @bind="_newOutage.Title" />
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Description</div>
+                <textarea class="form-control-custom w-100" rows="3"
+                          placeholder="Describe the outage..."
+                          @bind="_newOutage.Description"></textarea>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Cause</div>
+                    <select class="form-control-custom w-100" @bind="_newOutage.Cause">
+                        <option value="0">Storm</option>
+                        <option value="1">Equipment</option>
+                        <option value="2">Accident</option>
+                        <option value="3">Maintenance</option>
+                        <option value="4">Unknown</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Affected Customers</div>
+                    <input type="number" class="form-control-custom w-100"
+                           placeholder="0"
+                           @bind="_newOutage.AffectedCustomers" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Affected Area</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. Downtown, North District"
+                       @bind="_newOutage.AffectedArea" />
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Latitude</div>
+                    <input type="number" class="form-control-custom w-100"
+                           step="0.0001" placeholder="40.7128"
+                           @bind="_newOutage.Latitude" />
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Longitude</div>
+                    <input type="number" class="form-control-custom w-100"
+                           step="0.0001" placeholder="-74.0060"
+                           @bind="_newOutage.Longitude" />
+                </div>
+            </div>
+            <div class="mb-4">
+                <div class="form-label-custom">Reported By</div>
+                <input class="form-control-custom w-100"
+                       placeholder="Your name or ID"
+                       @bind="_newOutage.ReportedBy" />
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showCreateModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="CreateOutage">
+                    <i class="bi bi-check-lg"></i> Submit Report
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- EDIT MODAL -->
+@if (_showEditModal && _editOutage != null)
+{
+    <div class="modal-overlay" @onclick="() => _showEditModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5>
+                <i class="bi bi-pencil me-2" style="color:#4e9af1;"></i>
+                Update Outage #@_editOutage.Id
+            </h5>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Title</div>
+                <input class="form-control-custom w-100" @bind="_editDto.Title" />
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Description</div>
+                <textarea class="form-control-custom w-100" rows="3"
+                          @bind="_editDto.Description"></textarea>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Status</div>
+                    <select class="form-control-custom w-100" @bind="_editDto.Status">
+                        <option value="0">Reported</option>
+                        <option value="1">In Progress</option>
+                        <option value="2">Resolved</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Cause</div>
+                    <select class="form-control-custom w-100" @bind="_editDto.Cause">
+                        <option value="0">Storm</option>
+                        <option value="1">Equipment</option>
+                        <option value="2">Accident</option>
+                        <option value="3">Maintenance</option>
+                        <option value="4">Unknown</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Affected Area</div>
+                    <input class="form-control-custom w-100"
+                           @bind="_editDto.AffectedArea" />
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Affected Customers</div>
+                    <input type="number" class="form-control-custom w-100"
+                           @bind="_editDto.AffectedCustomers" />
+                </div>
+            </div>
+            <div class="mb-4">
+                <div class="form-label-custom">Assign Crew</div>
+                <select class="form-control-custom w-100" @bind="_editDto.AssignedCrewId">
+                    <option value="">— Unassigned —</option>
+                    @foreach (var crew in _crews)
+                    {
+                        <option value="@crew.Id">@crew.Name (@crew.LeadTechnician)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showEditModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="UpdateOutage">
+                    <i class="bi bi-check-lg"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _showCreateModal = false;
+    private bool _showEditModal = false;
+    private string? _successMsg;
+    private string? _errorMsg;
+    private string _searchTerm = "";
+    private string _statusFilter = "";
+    private string _causeFilter = "";
+
+    private List<OutageDto> _outages = new();
+    private List<CrewDto> _crews = new();
+
+    private CreateOutageDto _newOutage = new();
+    private UpdateOutageDto _editDto = new();
+    private OutageDto? _editOutage = null;
+
+    private IEnumerable<OutageDto> FilteredOutages => _outages
+        .Where(o =>
+            (string.IsNullOrEmpty(_searchTerm) ||
+             o.Title.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             o.AffectedArea.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(_statusFilter) || o.Status == _statusFilter) &&
+            (string.IsNullOrEmpty(_causeFilter) || o.Cause == _causeFilter)
+        )
+        .OrderByDescending(o => o.ReportedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _outages = await OutageService.GetAllAsync();
+        _crews = await CrewService.GetAllAsync();
+        _loading = false;
+    }
+
+    private void OpenEdit(OutageDto o)
+    {
+        _editOutage = o;
+        _editDto = new UpdateOutageDto
+        {
+            Title = o.Title,
+            Description = o.Description,
+            AffectedArea = o.AffectedArea,
+            AffectedCustomers = o.AffectedCustomers,
+            AssignedCrewId = o.AssignedCrewId
+        };
+        _showEditModal = true;
+    }
+
+    private async Task CreateOutage()
+    {
+        ClearMessages();
+        if (string.IsNullOrWhiteSpace(_newOutage.Title))
+        {
+            _errorMsg = "Please enter a title.";
+            return;
+        }
+        var ok = await OutageService.CreateAsync(_newOutage);
+        if (ok)
+        {
+            _successMsg = "Outage reported successfully!";
+            _newOutage = new();
+            _showCreateModal = false;
+            _outages = await OutageService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to report outage. Please try again.";
+        AutoClearMessages();
+    }
+
+    private async Task UpdateOutage()
+    {
+        ClearMessages();
+        if (_editOutage == null) return;
+        var ok = await OutageService.UpdateAsync(_editOutage.Id, _editDto);
+        if (ok)
+        {
+            _successMsg = "Outage updated successfully!";
+            _showEditModal = false;
+            _outages = await OutageService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to update outage.";
+        AutoClearMessages();
+    }
+
+    private async Task DeleteOutage(int id)
+    {
+        ClearMessages();
+        var ok = await OutageService.DeleteAsync(id);
+        if (ok)
+        {
+            _successMsg = "Outage deleted.";
+            _outages = await OutageService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to delete outage.";
+        AutoClearMessages();
+    }
+
+    private void ClearMessages() { _successMsg = null; _errorMsg = null; }
+
+    private async void AutoClearMessages()
+    {
+        await Task.Delay(3500);
+        ClearMessages();
+        StateHasChanged();
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Reported" => "badge-reported",
+        "InProgress" => "badge-inprogress",
+        "Resolved" => "badge-resolved",
+        _ => "badge-reported"
+    };
+}

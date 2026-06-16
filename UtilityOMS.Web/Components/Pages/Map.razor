@@ -1,0 +1,292 @@
+﻿@page "/map"
+@rendermode InteractiveServer
+@using UtilityOMS.Web.Services
+@inject OutageClientService OutageService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 style="font-weight:700; color:#1a1f3c; margin:0;">
+            Live Outage Map
+        </h4>
+        <p style="color:#888; font-size:0.875rem; margin:0;">
+            Real-time outage locations across the service area
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <!-- Live badge -->
+        <div class="map-live-badge">
+            <div class="map-live-dot"></div>
+            LIVE
+        </div>
+        <!-- Connection status -->
+        <div style="font-size:0.8rem; color:@(_connected ? "#27ae60" : "#e74c3c");">
+            <i class="bi bi-@(_connected ? "wifi" : "wifi-off") me-1"></i>
+            @(_connected ? "Connected" : "Connecting...")
+        </div>
+        <button class="btn-primary-custom" @onclick="FitAllMarkers">
+            <i class="bi bi-arrows-fullscreen"></i> Fit All
+        </button>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="map-legend mb-3">
+    <span style="font-size:0.8rem; font-weight:700; color:#888;
+        text-transform:uppercase; letter-spacing:0.5px;">
+        Legend:
+    </span>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#e74c3c;"></div>
+        Reported (@_outages.Count(o => o.Status == "Reported"))
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#f39c12;"></div>
+        In Progress (@_outages.Count(o => o.Status == "InProgress"))
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#27ae60;"></div>
+        Resolved (@_outages.Count(o => o.Status == "Resolved"))
+    </div>
+    <div style="margin-left:auto; font-size:0.8rem; color:#888;">
+        Total: <strong style="color:#1a1f3c;">@_outages.Count</strong> outages
+    </div>
+</div>
+
+<!-- Main Map + Sidebar Layout -->
+<div class="row g-3">
+    <!-- Map -->
+    <div class="col-xl-8">
+        <div class="panel" style="padding:12px;">
+            @if (_loading)
+            {
+                <div class="loading-container" style="height:600px;">
+                    <div class="spinner-custom"></div>
+                    <span>Initializing map...</span>
+                </div>
+            }
+            <!-- The map renders here — wrapped for containment -->
+            <div class="map-wrapper"
+                 style="@(_loading ? "display:none;" : "")">
+                <div id="outage-map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outage Sidebar List -->
+    <div class="col-xl-4">
+        <div class="panel" style="height:636px; overflow-y:auto;">
+            <div class="panel-title">
+                <i class="bi bi-list-ul" style="color:#4e9af1;"></i>
+                Outage List
+                <span style="margin-left:auto; font-size:0.75rem;
+                    font-weight:500; color:#888;">
+                    Click to fly to location
+                </span>
+            </div>
+
+            @if (!_outages.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-geo-alt"></i>
+                    <p>No outages on the map yet.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var o in _outages.OrderByDescending(x => x.ReportedAt))
+                {
+                    <div class="map-outage-item"
+                         @onclick="() => FlyToOutage(o)">
+                        <div class="d-flex justify-content-between
+                            align-items-start mb-1">
+                            <div style="font-weight:600; color:#1a1f3c;
+                                font-size:0.875rem; flex:1;
+                                margin-right:8px;">
+                                @o.Title
+                            </div>
+                            <span class="@GetStatusBadge(o.Status)"
+                                  style="flex-shrink:0;">
+                                @o.Status
+                            </span>
+                        </div>
+                        <div style="font-size:0.77rem; color:#888;">
+                            <i class="bi bi-geo-alt me-1"></i>@o.AffectedArea
+                            &nbsp;·&nbsp;
+                            <i class="bi bi-people me-1"></i>
+                            @o.AffectedCustomers customers
+                        </div>
+                        <div style="font-size:0.72rem; color:#bbb; margin-top:3px;">
+                            <i class="bi bi-clock me-1"></i>
+                            @o.ReportedAt.ToString("MMM dd, hh:mm tt")
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+@if (_toastMessage != null)
+{
+    <div class="map-toast">
+        <i class="bi bi-lightning-charge-fill" style="color:#f39c12;"></i>
+        @_toastMessage
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _connected = false;
+    private string? _toastMessage;
+    private List<OutageDto> _outages = new();
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _outages = await OutageService.GetAllAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // ✅ Wait for DOM to fully render before init
+        await Task.Delay(150);
+
+        // ✅ Initialize Leaflet map
+        await JS.InvokeVoidAsync(
+            "mapInterop.initMap", 39.5, -98.35, 5);
+
+        // ✅ Load all existing outages onto map
+        await JS.InvokeVoidAsync(
+            "mapInterop.loadOutages", _outages);
+
+        _loading = false;
+        StateHasChanged();
+
+        // ✅ Small delay to let tiles load before fitting
+        await Task.Delay(300);
+
+        // ✅ Connect to SignalR hub
+        await ConnectToHub();
+
+        // ✅ Fit map to show all markers
+        if (_outages.Any())
+            await JS.InvokeVoidAsync("mapInterop.fitAllMarkers");
+    }
+
+    // ✅ Connect to the SignalR Hub
+    private async Task ConnectToHub()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:7033/outageHub")
+            .WithAutomaticReconnect()
+            .Build();
+
+        // ⚡ New outage reported
+        _hubConnection.On<OutageDto>("OutageCreated", async (outage) =>
+        {
+            _outages.Add(outage);
+            await JS.InvokeVoidAsync("mapInterop.addOrUpdateMarker", outage);
+            await ShowToast($"🔴 New outage: {outage.Title}");
+            StateHasChanged();
+        });
+
+        // ⚡ Outage updated
+        _hubConnection.On<OutageDto>("OutageUpdated", async (outage) =>
+        {
+            var existing = _outages.FirstOrDefault(o => o.Id == outage.Id);
+            if (existing != null)
+            {
+                var index = _outages.IndexOf(existing);
+                _outages[index] = outage;
+            }
+            await JS.InvokeVoidAsync("mapInterop.addOrUpdateMarker", outage);
+            await ShowToast($"✏️ Outage updated: {outage.Title}");
+            StateHasChanged();
+        });
+
+        // ⚡ Outage deleted
+        _hubConnection.On<int>("OutageDeleted", async (id) =>
+        {
+            _outages.RemoveAll(o => o.Id == id);
+            await JS.InvokeVoidAsync("mapInterop.removeMarker", id);
+            await ShowToast("🗑️ An outage was removed from the map.");
+            StateHasChanged();
+        });
+
+        // ✅ Reconnection events
+        _hubConnection.Reconnecting += _ =>
+        {
+            _connected = false;
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+
+        _hubConnection.Reconnected += _ =>
+        {
+            _connected = true;
+            InvokeAsync(StateHasChanged);
+            return Task.CompletedTask;
+        };
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            await _hubConnection.SendAsync("JoinMapGroup");
+            _connected = true;
+            StateHasChanged();
+        }
+        catch
+        {
+            _connected = false;
+            StateHasChanged();
+        }
+    }
+
+    // ✅ Fly to outage on map
+    private async Task FlyToOutage(OutageDto o)
+    {
+        if (o.Latitude == 0 && o.Longitude == 0) return;
+        await JS.InvokeVoidAsync("mapInterop.flyToOutage", o.Latitude, o.Longitude);
+    }
+
+    // ✅ Fit all markers
+    private async Task FitAllMarkers()
+    {
+        await JS.InvokeVoidAsync("mapInterop.fitAllMarkers");
+    }
+
+    // ✅ Show toast for 3 seconds
+    private async Task ShowToast(string message)
+    {
+        _toastMessage = message;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(3000);
+        _toastMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ✅ Cleanup SignalR on page leave
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.SendAsync("LeaveMapGroup");
+            await _hubConnection.DisposeAsync();
+        }
+        await JS.InvokeVoidAsync("mapInterop.destroyMap");
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        "Reported" => "badge-reported",
+        "InProgress" => "badge-inprogress",
+        "Resolved" => "badge-resolved",
+        _ => "badge-reported"
+    };
+}

@@ -1,23 +1,95 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
+<div class="d-flex">
+    <!-- Sidebar -->
     <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="sidebar-brand">
+            <h4>
+                <i class="bi bi-lightning-charge-fill me-2"></i>
+                Utility<span>OMS</span>
+            </h4>
+            <small>Outage Management System</small>
         </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+        <div class="sidebar-nav">
+            <div class="nav-section-title">Main Menu</div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+            <div class="nav-item-custom">
+                <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item-custom">
+                <NavLink class="nav-link-custom" href="outages">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Outages</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item-custom">
+                <NavLink class="nav-link-custom" href="map">
+                    <i class="bi bi-map"></i>
+                    <span>Live Map</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-section-title" style="margin-top:10px;">Management</div>
+
+            <div class="nav-item-custom">
+                <NavLink class="nav-link-custom" href="crews">
+                    <i class="bi bi-people"></i>
+                    <span>Crew Management</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item-custom">
+                <NavLink class="nav-link-custom" href="residents">
+                    <i class="bi bi-person-lines-fill"></i>
+                    <span>Residents</span>
+                </NavLink>
+            </div>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div style="position:absolute; bottom:0; left:0; right:0;
+            padding:16px 24px;
+            border-top:1px solid rgba(255,255,255,0.1);">
+            <div style="color:rgba(255,255,255,0.4); font-size:0.72rem;">
+                <i class="bi bi-circle-fill me-1"
+                   style="color:#27ae60; font-size:0.5rem;"></i>
+                System Online — v1.0.0
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content flex-grow-1">
+        <!-- Top Navbar -->
+        <div class="top-navbar">
+            <h5>
+                <i class="bi bi-lightning-charge me-2" style="color:#4e9af1;"></i>
+                Utility Outage Management System
+            </h5>
+            <div class="d-flex align-items-center gap-3">
+                <span style="font-size:0.8rem; color:#888;">
+                    <i class="bi bi-clock me-1"></i>
+                    @DateTime.Now.ToString("MMM dd, yyyy — hh:mm tt")
+                </span>
+                <div style="width:36px; height:36px;
+                    background:linear-gradient(135deg,#4e9af1,#2d7dd2);
+                    border-radius:50%; display:flex; align-items:center;
+                    justify-content:center; color:white;
+                    font-weight:700; font-size:0.85rem;">
+                    A
+                </div>
+            </div>
+        </div>
+
+        <!-- Page Body -->
+        <div class="page-content">
+            @Body
+        </div>
+    </div>
 </div>

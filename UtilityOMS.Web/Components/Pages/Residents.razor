@@ -1,0 +1,526 @@
+﻿@page "/residents"
+@using UtilityOMS.Web.Services
+@rendermode InteractiveServer
+@inject ResidentClientService ResidentService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 style="font-weight:700; color:#1a1f3c; margin:0;">Resident Management</h4>
+        <p style="color:#888; font-size:0.875rem; margin:0;">
+            Manage residents and their notification preferences
+        </p>
+    </div>
+    <button class="btn-primary-custom" @onclick="() => _showCreateModal = true">
+        <i class="bi bi-plus-lg"></i> Add Resident
+    </button>
+</div>
+
+<!-- Stats Bar -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon blue">
+                <i class="bi bi-people-fill"></i>
+            </div>
+            <div>
+                <div class="kpi-value">@_residents.Count</div>
+                <div class="kpi-label">Total Residents</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon green">
+                <i class="bi bi-chat-dots-fill"></i>
+            </div>
+            <div>
+                <div class="kpi-value">@_residents.Count(r => r.SmsOptIn)</div>
+                <div class="kpi-label">SMS Opted In</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon orange">
+                <i class="bi bi-envelope-fill"></i>
+            </div>
+            <div>
+                <div class="kpi-value">@_residents.Count(r => r.EmailOptIn)</div>
+                <div class="kpi-label">Email Opted In</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search + Filter Bar -->
+<div class="panel mb-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+        <div class="search-bar">
+            <i class="bi bi-search"></i>
+            <input placeholder="Search residents..."
+                   @bind="_searchTerm"
+                   @bind:event="oninput" />
+        </div>
+
+        <select class="form-control-custom" style="width:200px;"
+                @bind="_notifFilter">
+            <option value="">All Preferences</option>
+            <option value="sms">SMS Opted In</option>
+            <option value="email">Email Opted In</option>
+            <option value="both">Both SMS & Email</option>
+            <option value="none">No Notifications</option>
+        </select>
+
+        <span style="color:#888; font-size:0.82rem; margin-left:auto;">
+            Showing @FilteredResidents.Count() of @_residents.Count residents
+        </span>
+    </div>
+</div>
+
+<!-- Residents Table -->
+<div class="panel">
+    @if (_loading)
+    {
+        <div class="loading-container">
+            <div class="spinner-custom"></div>
+            <span>Loading residents...</span>
+        </div>
+    }
+    else if (!FilteredResidents.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-people"></i>
+            <p>No residents found.<br />Try adjusting your search or add a new resident.</p>
+        </div>
+    }
+    else
+    {
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Resident</th>
+                    <th>Contact</th>
+                    <th>Address</th>
+                    <th>SMS</th>
+                    <th>Email</th>
+                    <th>Registered</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in FilteredResidents)
+                {
+                    <tr>
+                        <td style="color:#aaa; font-size:0.8rem;">#@r.Id</td>
+
+                        <!-- Name + Avatar -->
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div style="width:38px; height:38px; border-radius:10px;
+                                    background:linear-gradient(135deg,#4e9af1,#2d7dd2);
+                                    display:flex; align-items:center; justify-content:center;
+                                    color:white; font-weight:700; font-size:0.9rem;
+                                    flex-shrink:0;">
+                                    @r.Name[0].ToString().ToUpper()
+                                </div>
+                                <div>
+                                    <div style="font-weight:600; color:#1a1f3c;">@r.Name</div>
+                                    <div style="font-size:0.75rem; color:#aaa;">@r.Email</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Phone -->
+                        <td>
+                            <div style="font-size:0.875rem; color:#555;">
+                                <i class="bi bi-telephone me-1" style="color:#4e9af1;"></i>
+                                @r.PhoneNumber
+                            </div>
+                        </td>
+
+                        <!-- Address -->
+                        <td>
+                            <div style="font-size:0.82rem; color:#666; max-width:160px;
+                                overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                <i class="bi bi-geo-alt me-1" style="color:#e74c3c;"></i>
+                                @r.Address
+                            </div>
+                        </td>
+
+                        <!-- SMS Opt-In -->
+                        <td>
+                            @if (r.SmsOptIn)
+                            {
+                                <span class="badge-available">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Yes
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge-offduty">
+                                    <i class="bi bi-x-circle-fill me-1"></i>No
+                                </span>
+                            }
+                        </td>
+
+                        <!-- Email Opt-In -->
+                        <td>
+                            @if (r.EmailOptIn)
+                            {
+                                <span class="badge-available">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Yes
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge-offduty">
+                                    <i class="bi bi-x-circle-fill me-1"></i>No
+                                </span>
+                            }
+                        </td>
+
+                        <!-- Registered Date -->
+                        <td style="color:#888; font-size:0.8rem;">
+                            @r.RegisteredAt.ToString("MMM dd, yyyy")
+                        </td>
+
+                        <!-- Actions -->
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button class="btn-edit-custom"
+                                        @onclick="() => OpenEdit(r)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn-danger-custom"
+                                        @onclick="() => DeleteResident(r.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<!-- SUCCESS / ERROR -->
+@if (_successMsg != null)
+{
+    <div class="alert-custom-success mt-3">
+        <i class="bi bi-check-circle-fill"></i> @_successMsg
+    </div>
+}
+@if (_errorMsg != null)
+{
+    <div class="alert-custom-error mt-3">
+        <i class="bi bi-x-circle-fill"></i> @_errorMsg
+    </div>
+}
+
+<!-- ===================== -->
+<!-- CREATE MODAL          -->
+<!-- ===================== -->
+@if (_showCreateModal)
+{
+    <div class="modal-overlay" @onclick="() => _showCreateModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5>
+                <i class="bi bi-person-plus me-2" style="color:#4e9af1;"></i>
+                Add New Resident
+            </h5>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Full Name *</div>
+                    <input class="form-control-custom w-100"
+                           placeholder="e.g. John Smith"
+                           @bind="_newResident.Name" />
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Phone Number</div>
+                    <input class="form-control-custom w-100"
+                           placeholder="e.g. 555-1234"
+                           @bind="_newResident.PhoneNumber" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Email Address</div>
+                <input type="email" class="form-control-custom w-100"
+                       placeholder="e.g. john@example.com"
+                       @bind="_newResident.Email" />
+            </div>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Street Address</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. 123 Main Street"
+                       @bind="_newResident.Address" />
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Latitude</div>
+                    <input type="number" step="0.0001"
+                           class="form-control-custom w-100"
+                           placeholder="e.g. 40.7128"
+                           @bind="_newResident.Latitude" />
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Longitude</div>
+                    <input type="number" step="0.0001"
+                           class="form-control-custom w-100"
+                           placeholder="e.g. -74.0060"
+                           @bind="_newResident.Longitude" />
+                </div>
+            </div>
+
+            <!-- Notification Preferences -->
+            <div class="mb-4"
+                 style="background:#f8fafc; border-radius:12px; padding:16px;">
+                <div class="form-label-custom mb-2">
+                    Notification Preferences
+                </div>
+                <div class="d-flex gap-4">
+                    <label style="display:flex; align-items:center; gap:8px;
+                        cursor:pointer; font-size:0.875rem; color:#555;">
+                        <input type="checkbox"
+                               style="width:16px; height:16px; accent-color:#4e9af1;"
+                               @bind="_newResident.SmsOptIn" />
+                        <i class="bi bi-chat-dots" style="color:#4e9af1;"></i>
+                        SMS Notifications
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px;
+                        cursor:pointer; font-size:0.875rem; color:#555;">
+                        <input type="checkbox"
+                               style="width:16px; height:16px; accent-color:#4e9af1;"
+                               @bind="_newResident.EmailOptIn" />
+                        <i class="bi bi-envelope" style="color:#4e9af1;"></i>
+                        Email Notifications
+                    </label>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showCreateModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="CreateResident">
+                    <i class="bi bi-check-lg"></i> Add Resident
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===================== -->
+<!-- EDIT MODAL            -->
+<!-- ===================== -->
+@if (_showEditModal && _editResident != null)
+{
+    <div class="modal-overlay" @onclick="() => _showEditModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5>
+                <i class="bi bi-pencil me-2" style="color:#4e9af1;"></i>
+                Edit — @_editResident.Name
+            </h5>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="form-label-custom">Full Name</div>
+                    <input class="form-control-custom w-100"
+                           @bind="_editDto.Name" />
+                </div>
+                <div class="col-6">
+                    <div class="form-label-custom">Phone Number</div>
+                    <input class="form-control-custom w-100"
+                           @bind="_editDto.PhoneNumber" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Email Address</div>
+                <input type="email" class="form-control-custom w-100"
+                       @bind="_editDto.Email" />
+            </div>
+
+            <div class="mb-4">
+                <div class="form-label-custom">Street Address</div>
+                <input class="form-control-custom w-100"
+                       @bind="_editDto.Address" />
+            </div>
+
+            <!-- Notification Preferences -->
+            <div class="mb-4"
+                 style="background:#f8fafc; border-radius:12px; padding:16px;">
+                <div class="form-label-custom mb-2">
+                    Notification Preferences
+                </div>
+                <div class="d-flex gap-4">
+                    <label style="display:flex; align-items:center; gap:8px;
+                        cursor:pointer; font-size:0.875rem; color:#555;">
+                        <input type="checkbox"
+                               style="width:16px; height:16px; accent-color:#4e9af1;"
+                               @bind="_editDto.SmsOptIn" />
+                        <i class="bi bi-chat-dots" style="color:#4e9af1;"></i>
+                        SMS Notifications
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px;
+                        cursor:pointer; font-size:0.875rem; color:#555;">
+                        <input type="checkbox"
+                               style="width:16px; height:16px; accent-color:#4e9af1;"
+                               @bind="_editDto.EmailOptIn" />
+                        <i class="bi bi-envelope" style="color:#4e9af1;"></i>
+                        Email Notifications
+                    </label>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showEditModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="UpdateResident">
+                    <i class="bi bi-check-lg"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _showCreateModal = false;
+    private bool _showEditModal = false;
+    private string? _successMsg;
+    private string? _errorMsg;
+    private string _searchTerm = "";
+    private string _notifFilter = "";
+
+    private List<ResidentDto> _residents = new();
+    private CreateResidentDto _newResident = new();
+    private UpdateResidentDto _editDto = new();
+    private ResidentDto? _editResident;
+
+    // ✅ Smart filtering
+    private IEnumerable<ResidentDto> FilteredResidents => _residents
+        .Where(r =>
+            (string.IsNullOrEmpty(_searchTerm) ||
+             r.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             r.Email.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             r.Address.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             r.PhoneNumber.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+            _notifFilter switch
+            {
+                "sms" => r.SmsOptIn,
+                "email" => r.EmailOptIn,
+                "both" => r.SmsOptIn && r.EmailOptIn,
+                "none" => !r.SmsOptIn && !r.EmailOptIn,
+                _ => true
+            }
+        )
+        .OrderBy(r => r.Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _residents = await ResidentService.GetAllAsync();
+        _loading = false;
+    }
+
+    private void OpenEdit(ResidentDto r)
+    {
+        _editResident = r;
+        _editDto = new UpdateResidentDto
+        {
+            Name = r.Name,
+            PhoneNumber = r.PhoneNumber,
+            Email = r.Email,
+            Address = r.Address,
+            SmsOptIn = r.SmsOptIn,
+            EmailOptIn = r.EmailOptIn
+        };
+        _showEditModal = true;
+    }
+
+    private async Task CreateResident()
+    {
+        ClearMessages();
+
+        if (string.IsNullOrWhiteSpace(_newResident.Name))
+        {
+            _errorMsg = "Please enter a name.";
+            return;
+        }
+
+        var ok = await ResidentService.CreateAsync(_newResident);
+        if (ok)
+        {
+            _successMsg = $"{_newResident.Name} added successfully!";
+            _newResident = new();
+            _showCreateModal = false;
+            _residents = await ResidentService.GetAllAsync();
+        }
+        else
+        {
+            _errorMsg = "Failed to add resident. Please try again.";
+        }
+
+        AutoClearMessages();
+    }
+
+    private async Task UpdateResident()
+    {
+        ClearMessages();
+
+        if (_editResident == null) return;
+
+        var ok = await ResidentService.UpdateAsync(_editResident.Id, _editDto);
+        if (ok)
+        {
+            _successMsg = "Resident updated successfully!";
+            _showEditModal = false;
+            _residents = await ResidentService.GetAllAsync();
+        }
+        else
+        {
+            _errorMsg = "Failed to update resident.";
+        }
+
+        AutoClearMessages();
+    }
+
+    private async Task DeleteResident(int id)
+    {
+        ClearMessages();
+
+        var ok = await ResidentService.DeleteAsync(id);
+        if (ok)
+        {
+            _successMsg = "Resident removed successfully.";
+            _residents = await ResidentService.GetAllAsync();
+        }
+        else
+        {
+            _errorMsg = "Failed to remove resident.";
+        }
+
+        AutoClearMessages();
+    }
+
+    private void ClearMessages()
+    {
+        _successMsg = null;
+        _errorMsg = null;
+    }
+
+    private async void AutoClearMessages()
+    {
+        await Task.Delay(3500);
+        ClearMessages();
+        StateHasChanged();
+    }
+}

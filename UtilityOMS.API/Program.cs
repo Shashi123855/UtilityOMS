@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using UtilityOMS.API.Data;
+using UtilityOMS.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ SQLite - Free, no installation needed!
+// ✅ SQLite
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=utility_oms.db"));
 
@@ -12,35 +13,42 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ✅ SignalR - Real-time updates (free, built-in)
+// ✅ SignalR
 builder.Services.AddSignalR();
 
-// ✅ CORS - Allow Blazor frontend to talk to API
+// ✅ CORS - Allow Blazor + SignalR
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5001",
+                           "https://localhost:5001",
+                           "http://localhost:7000",
+                           "https://localhost:7000")
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // ← Required for SignalR!
     });
 });
 
 var app = builder.Build();
 
-// ✅ Auto-create and migrate the SQLite database on startup
+// ✅ Auto-create DB on startup
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
 
-// ✅ Swagger UI
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowAll");
 app.UseAuthorization();
+
 app.MapControllers();
+
+// ✅ Map SignalR Hub
+app.MapHub<OutageHub>("/outageHub");
 
 app.Run();

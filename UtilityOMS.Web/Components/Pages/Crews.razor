@@ -1,0 +1,288 @@
+﻿@page "/crews"
+@rendermode InteractiveServer
+@using UtilityOMS.Web.Services
+@inject CrewClientService CrewService
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 style="font-weight:700; color:#1a1f3c; margin:0;">Crew Management</h4>
+        <p style="color:#888; font-size:0.875rem; margin:0;">
+            Manage your field crews and their assignments
+        </p>
+    </div>
+    <button class="btn-primary-custom" @onclick="() => _showCreateModal = true">
+        <i class="bi bi-plus-lg"></i> Add New Crew
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-container">
+        <div class="spinner-custom"></div>
+        <span>Loading crews...</span>
+    </div>
+}
+else
+{
+    <!-- Crew Cards -->
+    <div class="row g-3">
+        @foreach (var crew in _crews)
+        {
+            <div class="col-xl-4 col-md-6">
+                <div class="panel h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div style="width:50px; height:50px; border-radius:14px;
+                                background:linear-gradient(135deg,#4e9af1,#2d7dd2);
+                                display:flex; align-items:center; justify-content:center;
+                                color:white; font-size:1.3rem; font-weight:700;">
+                                @crew.Name[0]
+                            </div>
+                            <div>
+                                <div style="font-weight:700; color:#1a1f3c;">@crew.Name</div>
+                                <div style="font-size:0.8rem; color:#888;">
+                                    <i class="bi bi-person me-1"></i>@crew.LeadTechnician
+                                </div>
+                            </div>
+                        </div>
+                        <span class="@GetCrewBadge(crew.Status)">@crew.Status</span>
+                    </div>
+
+                    <div style="display:flex; gap:12px; margin-bottom:16px;">
+                        <div style="flex:1; background:#f8fafc; border-radius:10px;
+                            padding:12px; text-align:center;">
+                            <div style="font-size:1.3rem; font-weight:700; color:#4e9af1;">
+                                @crew.ActiveOutagesCount
+                            </div>
+                            <div style="font-size:0.72rem; color:#888;">Active Jobs</div>
+                        </div>
+                        <div style="flex:1; background:#f8fafc; border-radius:10px;
+                            padding:12px; text-align:center;">
+                            <div style="font-size:0.85rem; font-weight:600; color:#555;">
+                                <i class="bi bi-telephone"></i>
+                            </div>
+                            <div style="font-size:0.72rem; color:#888;">@crew.PhoneNumber</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn-edit-custom flex-grow-1"
+                                @onclick="() => OpenEdit(crew)">
+                            <i class="bi bi-pencil me-1"></i> Edit
+                        </button>
+                        <button class="btn-danger-custom"
+                                @onclick="() => DeleteCrew(crew.Id)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (!_crews.Any())
+        {
+            <div class="col-12">
+                <div class="panel">
+                    <div class="empty-state">
+                        <i class="bi bi-people"></i>
+                        <p>No crews added yet.<br />Click "Add New Crew" to get started!</p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (_successMsg != null)
+{
+    <div class="alert-custom-success mt-3">
+        <i class="bi bi-check-circle-fill"></i> @_successMsg
+    </div>
+}
+@if (_errorMsg != null)
+{
+    <div class="alert-custom-error mt-3">
+        <i class="bi bi-x-circle-fill"></i> @_errorMsg
+    </div>
+}
+
+<!-- CREATE MODAL -->
+@if (_showCreateModal)
+{
+    <div class="modal-overlay" @onclick="() => _showCreateModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5><i class="bi bi-people me-2" style="color:#4e9af1;"></i>Add New Crew</h5>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Crew Name *</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. Alpha Team"
+                       @bind="_newCrew.Name" />
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Lead Technician *</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. John Smith"
+                       @bind="_newCrew.LeadTechnician" />
+            </div>
+            <div class="mb-4">
+                <div class="form-label-custom">Phone Number</div>
+                <input class="form-control-custom w-100"
+                       placeholder="e.g. 555-1234"
+                       @bind="_newCrew.PhoneNumber" />
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showCreateModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="CreateCrew">
+                    <i class="bi bi-check-lg"></i> Add Crew
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- EDIT MODAL -->
+@if (_showEditModal && _editCrew != null)
+{
+    <div class="modal-overlay" @onclick="() => _showEditModal = false">
+        <div class="modal-box" @onclick:stopPropagation>
+            <h5>
+                <i class="bi bi-pencil me-2" style="color:#4e9af1;"></i>
+                Edit — @_editCrew.Name
+            </h5>
+
+            <div class="mb-3">
+                <div class="form-label-custom">Crew Name</div>
+                <input class="form-control-custom w-100" @bind="_editDto.Name" />
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Lead Technician</div>
+                <input class="form-control-custom w-100" @bind="_editDto.LeadTechnician" />
+            </div>
+            <div class="mb-3">
+                <div class="form-label-custom">Phone Number</div>
+                <input class="form-control-custom w-100" @bind="_editDto.PhoneNumber" />
+            </div>
+            <div class="mb-4">
+                <div class="form-label-custom">Status</div>
+                <select class="form-control-custom w-100" @bind="_editDto.Status">
+                    <option value="0">Available</option>
+                    <option value="1">Dispatched</option>
+                    <option value="2">On Site</option>
+                    <option value="3">Off Duty</option>
+                </select>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-danger-custom"
+                        @onclick="() => _showEditModal = false">
+                    Cancel
+                </button>
+                <button class="btn-primary-custom" @onclick="UpdateCrew">
+                    <i class="bi bi-check-lg"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _showCreateModal = false;
+    private bool _showEditModal = false;
+    private string? _successMsg;
+    private string? _errorMsg;
+
+    private List<CrewDto> _crews = new();
+    private CreateCrewDto _newCrew = new();
+    private UpdateCrewDto _editDto = new();
+    private CrewDto? _editCrew;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _crews = await CrewService.GetAllAsync();
+        _loading = false;
+    }
+
+    private void OpenEdit(CrewDto crew)
+    {
+        _editCrew = crew;
+        _editDto = new UpdateCrewDto
+        {
+            Name = crew.Name,
+            LeadTechnician = crew.LeadTechnician,
+            PhoneNumber = crew.PhoneNumber
+        };
+        _showEditModal = true;
+    }
+
+    private async Task CreateCrew()
+    {
+        ClearMessages();
+        if (string.IsNullOrWhiteSpace(_newCrew.Name))
+        {
+            _errorMsg = "Please enter a crew name.";
+            return;
+        }
+        var ok = await CrewService.CreateAsync(_newCrew);
+        if (ok)
+        {
+            _successMsg = "Crew added successfully!";
+            _newCrew = new();
+            _showCreateModal = false;
+            _crews = await CrewService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to add crew.";
+        AutoClearMessages();
+    }
+
+    private async Task UpdateCrew()
+    {
+        ClearMessages();
+        if (_editCrew == null) return;
+        var ok = await CrewService.UpdateAsync(_editCrew.Id, _editDto);
+        if (ok)
+        {
+            _successMsg = "Crew updated successfully!";
+            _showEditModal = false;
+            _crews = await CrewService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to update crew.";
+        AutoClearMessages();
+    }
+
+    private async Task DeleteCrew(int id)
+    {
+        ClearMessages();
+        var ok = await CrewService.DeleteAsync(id);
+        if (ok)
+        {
+            _successMsg = "Crew removed.";
+            _crews = await CrewService.GetAllAsync();
+        }
+        else _errorMsg = "Failed to remove crew.";
+        AutoClearMessages();
+    }
+
+    private void ClearMessages() { _successMsg = null; _errorMsg = null; }
+
+    private async void AutoClearMessages()
+    {
+        await Task.Delay(3500);
+        ClearMessages();
+        StateHasChanged();
+    }
+
+    private string GetCrewBadge(string status) => status switch
+    {
+        "Available" => "badge-available",
+        "Dispatched" => "badge-dispatched",
+        "OnSite" => "badge-onsite",
+        "OffDuty" => "badge-offduty",
+        _ => "badge-offduty"
+    };
+}

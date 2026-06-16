@@ -1,6 +1,27 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <RouteView RouteData="routeData"
+                   DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <div class="page-content">
+                <div class="panel" style="text-align:center; padding:60px;">
+                    <i class="bi bi-exclamation-circle"
+                           style="font-size:3rem; color:#ddd; display:block; margin-bottom:16px;">
+                    </i>
+                    <h4 style="color:#1a1f3c;">Page Not Found</h4>
+                    <p style="color:#888;">
+                        Sorry, there is nothing at this address.
+                    </p>
+                    <a href="/" class="btn-primary-custom"
+                           style="text-decoration:none; display:inline-flex;">
+                        <i class="bi bi-house"></i> Go Home
+                    </a>
+                </div>
+            </div>
+        </LayoutView>
+    </NotFound>
 </Router>

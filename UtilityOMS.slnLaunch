@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "UtilityOMS.API\\UtilityOMS.API.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "UtilityOMS.Web\\UtilityOMS.Web.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
